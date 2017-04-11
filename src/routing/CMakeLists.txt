@@ -44,6 +44,7 @@ target_include_directories(routing PRIVATE ${include_dirs})
 if(${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
   target_link_libraries(routing PRIVATE -lnsl PRIVATE -lsocket)
 endif()
+target_link_libraries(routing PRIVATE -lcurl)
 
 file(GLOB routing_headers include/mysqlrouter/*.h)
 install(FILES ${routing_headers}

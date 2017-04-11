@@ -54,7 +54,11 @@ public:
         max_connections(get_uint_option<uint16_t>(section, "max_connections", 1)),
         max_connect_errors(get_uint_option<uint32_t>(section, "max_connect_errors", 1, UINT32_MAX)),
         client_connect_timeout(get_uint_option<uint32_t>(section, "client_connect_timeout", 2, 31536000)),
-        net_buffer_length(get_uint_option<uint32_t>(section, "net_buffer_length", 1024, 1048576)) { }
+        net_buffer_length(get_uint_option<uint32_t>(section, "net_buffer_length", 1024, 1048576)),
+      abac_host(get_option_string(section, "abac_host")),
+      abac_port(get_uint_option<uint32_t>(section, "abac_port", 1, 65535)),
+      abac_id(get_option_string(section, "abac_id")),
+      abac_principal_id(get_option_string(section, "abac_principal_id")) { }
 
   string get_default(const string &option);
 
@@ -78,9 +82,19 @@ public:
   const unsigned int client_connect_timeout;
   /** @brief Size of buffer to receive packets */
   const unsigned int net_buffer_length;
+  /** @brief attestation based access control host, deciding whether allow connection */
+  const std::string abac_host;
+  /** @brief attestation based access control port, deciding whether allow connection */
+  const unsigned int abac_port;
+  /** @brief attestation based access control, sources */
+  const std::string abac_src_whitelist;
+  /** @brief abac ID set for this router */
+  const std::string abac_id;
+  /** @brief abac principal ID set for this router */
+  const std::string abac_principal_id;
 
 protected:
-
+  
 private:
   routing::AccessMode get_option_mode(const mysql_harness::ConfigSection *section, const string &option);
   string get_option_destinations(const mysql_harness::ConfigSection *section, const string &option);

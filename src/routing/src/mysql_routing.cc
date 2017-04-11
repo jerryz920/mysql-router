@@ -38,6 +38,7 @@
 #include <mutex>
 #include <sstream>
 #include <sys/types.h>
+#include <curl/curl.h>
 
 #ifdef _WIN32
 /* before winsock inclusion */
@@ -89,7 +90,8 @@ MySQLRouting::MySQLRouting(routing::AccessMode mode, uint16_t port, const string
       stopping_(false),
       info_active_routes_(0),
       info_handled_routes_(0),
-      socket_operations_(socket_operations) {
+      socket_operations_(socket_operations),
+      abac_curl_handle_(NULL) {
 
   assert(socket_operations_ != nullptr);
 
@@ -217,6 +219,8 @@ void MySQLRouting::routing_select_thread(int client, const in6_addr client_addr)
   mysql_protocol::Packet::vector_t buffer(net_buffer_length_);
   bool handshake_done = false;
 
+  log_debug("getting server socket\n");
+
   int server = destination_->get_server_socket(destination_connect_timeout_, &error);
 
   if (!(server > 0 && client > 0)) {
@@ -247,6 +251,42 @@ void MySQLRouting::routing_select_thread(int client, const in6_addr client_addr)
   }
 
   auto c_ip = get_peer_name(client);
+
+  // Attestation based access control: only if the client address points
+  // to a legit destination, should the connection proceed. Otherwise, shutdown
+  // the socket.
+  // Current ABAC control list only attests the source of the client
+  log_info("connection established, abac checking\n");
+  if (!check_abac_permission(c_ip.first, c_ip.second)) {
+    std::stringstream os;
+    os << "Can't connect to remote MySQL server for client '"
+      << bind_address_.addr << ":" << bind_address_.port << "', ABAC check failure.";
+
+    log_warning("[%s] %s", name.c_str(), os.str().c_str());
+
+    // at this point, it does not matter whether client gets the error
+    auto server_error = mysql_protocol::ErrorPacket(0, 2003, os.str(), "HY000");
+    // at this point, it does not matter whether client gets the error
+    errno = 0;
+#ifdef _WIN32
+    WSASetLastError(0);
+#endif
+    if (socket_operations_->write_all(client, server_error.data(), server_error.size()) < 0) {
+      log_debug("[%s] write error: %s", name.c_str(), get_message_error(errno).c_str());
+    }
+
+    socket_operations_->shutdown(client);
+    socket_operations_->shutdown(server);
+
+    if (client > 0) {
+      socket_operations_->close(client);
+    }
+    if (server > 0) {
+      socket_operations_->close(server);
+    }
+    return;
+  }
+
   auto s_ip = get_peer_name(server);
 
   log_debug("[%s] [%s]:%d - [%s]:%d", name.c_str(), c_ip.first.c_str(), c_ip.second,
@@ -360,6 +400,7 @@ void MySQLRouting::start() {
     throw runtime_error(
         string_format("Setting up service using %s: %s", bind_address_.str().c_str(), exc.what()));
   }
+  reset_abac();
 
   log_info("[%s] listening on %s; %s", name.c_str(), bind_address_.str().c_str(),
            routing::get_access_mode_name(mode_).c_str());
@@ -547,3 +588,57 @@ int MySQLRouting::set_max_connections(int maximum) {
   max_connections_ = maximum;
   return max_connections_;
 }
+
+void MySQLRouting::reset_abac() {
+  /// initialize the ABAC connection. May be called also on error
+  if (abac_curl_handle_) {
+    curl_easy_cleanup(abac_curl_handle_);
+  }
+  abac_curl_handle_ = curl_easy_init();
+  if (abac_curl_handle_) {
+    auto url = string_format("http://%s:%d/appAccessesObject",
+        abac_host_.c_str(), abac_port_);
+    curl_easy_setopt(abac_curl_handle_, CURLOPT_POST, 1L);
+    curl_easy_setopt(abac_curl_handle_, CURLOPT_URL, url.c_str());
+  } else {
+    log_error("can not initialize abac curl handle, aborting");
+    exit(1);
+  }
+}
+
+static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *userp)
+{
+  ((std::string*)userp)->append((char*)contents, size * nmemb);
+  return size * nmemb;
+}
+/// FIXME: we want to specify ABAC control on a higher level. Here we only
+// perform abac checking, and we only care about the TCP protocol
+bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
+    
+    auto curl = abac_curl_handle_;
+    auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
+        abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
+    string read_buffer;
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &read_buffer);
+    auto res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+      log_error("curl error: %s\n", curl_easy_strerror(res));
+      reset_abac();
+      return false;
+    }
+    log_debug("abac result: %s\n", read_buffer.c_str());
+
+    /// validate the read buffer, see if it is ok.
+    long http_code;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+      log_error("abac checking code: %d for %s:%d\n", http_code,
+          ip.c_str(), port);
+      return false;
+    }
+
+    return true;
+}
+

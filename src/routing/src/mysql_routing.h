@@ -54,6 +54,7 @@
 #  include <winsock2.h>
 #  include <ws2tcpip.h>
 #endif
+#include <curl/curl.h>
 
 
 #ifdef _WIN32
@@ -165,6 +166,22 @@ public:
   void set_destinations_from_csv(const string &csv);
 
   void set_destinations_from_uri(const URI &uri);
+
+  /* set abac source control information */
+  void set_abac_service(const string &host, unsigned int port) {
+    abac_host_ = host;
+    abac_port_ = port;
+  }
+
+  void set_abac_id(const string &id) {
+    abac_id_ = id;
+  }
+  void set_abac_principal_id(const string &id) {
+    abac_principal_id_ = id;
+  }
+  void reset_abac();
+  bool check_abac_permission(const string &ip, unsigned int port);
+
 
   /** @brief Descriptive name of the connection routing */
   const string name;
@@ -324,6 +341,12 @@ private:
   /** @brief Number of handled routes */
   std::atomic<uint64_t> info_handled_routes_;
 
+  /** @brief ABAC based connection check */
+  std::string abac_host_;
+  unsigned int abac_port_;
+  std::string abac_id_;
+  std::string abac_principal_id_;
+ 
   /** @brief Authentication error counters for IPv4 or IPv6 hosts */
   std::mutex mutex_auth_errors_;
   std::map<std::array<uint8_t, 16>, size_t> auth_error_counters_;
@@ -331,6 +354,8 @@ private:
 
   /** @brief object handling the operations on network sockets */
   routing::SocketOperationsBase* socket_operations_;
+  /** @brief ABAC connection handle using curl */
+  CURL *abac_curl_handle_;
 };
 
 extern "C"

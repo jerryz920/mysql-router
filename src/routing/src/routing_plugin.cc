@@ -132,6 +132,11 @@ static void start(const ConfigSection *section) {
     } catch (URIError) {
       r.set_destinations_from_csv(config.destinations);
     }
+    log_info("setting abac host %s, abac port %d, id %s, principal %s\n",
+        config.abac_host.c_str(), config.abac_port, config.abac_id.c_str(), config.abac_principal_id.c_str());
+    r.set_abac_service(config.abac_host, config.abac_port);
+    r.set_abac_id(config.abac_id);
+    r.set_abac_principal_id(config.abac_principal_id);
     r.start();
   } catch (const std::invalid_argument &exc) {
     log_error(exc.what());
