@@ -134,6 +134,7 @@ static void start(const ConfigSection *section) {
     }
     log_info("setting abac host %s, abac port %d, id %s, principal %s\n",
         config.abac_host.c_str(), config.abac_port, config.abac_id.c_str(), config.abac_principal_id.c_str());
+    r.enable_abac(config.abac_enabled);
     r.set_abac_service(config.abac_host, config.abac_port);
     r.set_abac_id(config.abac_id);
     r.set_abac_principal_id(config.abac_principal_id);

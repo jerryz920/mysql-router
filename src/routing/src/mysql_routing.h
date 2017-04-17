@@ -173,6 +173,10 @@ public:
     abac_port_ = port;
   }
 
+  void enable_abac(int conf) {
+    abac_enabled_ = conf != 0;
+  }
+
   void set_abac_id(const string &id) {
     abac_id_ = id;
   }
@@ -346,6 +350,7 @@ private:
   unsigned int abac_port_;
   std::string abac_id_;
   std::string abac_principal_id_;
+  bool abac_enabled_;
  
   /** @brief Authentication error counters for IPv4 or IPv6 hosts */
   std::mutex mutex_auth_errors_;

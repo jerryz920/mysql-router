@@ -614,7 +614,9 @@ static size_t WriteCallback(void *contents, size_t size, size_t nmemb, void *use
 /// FIXME: we want to specify ABAC control on a higher level. Here we only
 // perform abac checking, and we only care about the TCP protocol
 bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
-    
+    if (!abac_enabled_) {
+      return true;
+    }
     auto curl = abac_curl_handle_;
     auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
         abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());

@@ -58,7 +58,8 @@ public:
       abac_host(get_option_string(section, "abac_host")),
       abac_port(get_uint_option<uint32_t>(section, "abac_port", 1, 65535)),
       abac_id(get_option_string(section, "abac_id")),
-      abac_principal_id(get_option_string(section, "abac_principal_id")) { }
+      abac_principal_id(get_option_string(section, "abac_principal_id")),
+      abac_enabled(get_uint_option<uint32_t>(section, "abac_enabled", 0, 2)) { }
 
   string get_default(const string &option);
 
@@ -92,6 +93,8 @@ public:
   const std::string abac_id;
   /** @brief abac principal ID set for this router */
   const std::string abac_principal_id;
+  /** @brief whether to enable the ABAC */
+  const bool abac_enabled;
 
 protected:
   

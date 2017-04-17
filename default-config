@@ -12,3 +12,4 @@ abac_port = ABAC_PORT
 abac_host = ABAC_HOST
 abac_id = ABAC_ID
 abac_principal_id = ABAC_PID
+abac_enabled = 0
