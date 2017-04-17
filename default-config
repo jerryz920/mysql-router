@@ -4,12 +4,11 @@ logging_folder =
 [logger]
 level = DEBUG
 
-
 [routing:abac]
-bind_address = 127.0.0.1:7001
-destinations = 10.10.1.36:35357
+bind_address = MY_IP:3306
+destinations = localhost:3306
 mode = read-only
-abac_port = 7777
-abac_host = 10.10.1.3
-abac_id = abac
-abac_principal_id = 10.10.1.3:500
+abac_port = ABAC_PORT
+abac_host = ABAC_HOST
+abac_id = ABAC_ID
+abac_principal_id = ABAC_PID
