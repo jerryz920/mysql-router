@@ -5,7 +5,7 @@ logging_folder =
 level = DEBUG
 
 [routing:abac]
-bind_address = MY_IP:3306
+bind_address = 0.0.0.0:3307
 destinations = localhost:3306
 mode = read-only
 abac_port = ABAC_PORT
