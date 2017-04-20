@@ -54,6 +54,7 @@
 #  include <sys/un.h>
 #  include <sys/select.h>
 #  include <sys/socket.h>
+#  include <sys/signal.h>
 #else
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
@@ -69,6 +70,57 @@ using routing::SocketOperationsBase;
 using mysqlrouter::URI;
 using mysqlrouter::URIError;
 using mysqlrouter::URIQuery;
+
+
+#include <list>
+
+struct AbacConnection {
+  std::string ip;
+  unsigned int port;
+  int fd;
+  AbacConnection(const string &ip_, unsigned int port_, int fd_):
+      ip(ip_), port(port_), fd(fd_) {}
+};
+
+//// A connection pool for checking, these are just workarounds, rewrite this
+//part in future.
+std::list<AbacConnection> abac_seen;
+std::mutex abac_conn_lock;
+MySQLRouting *routing_plugin = nullptr;
+
+static void AddAbacConnection(const std::string& ip, unsigned int port, int fd)
+{
+  std::lock_guard<std::mutex> lock(abac_conn_lock);
+  abac_seen.push_back(AbacConnection(ip, port, fd));
+}
+
+static void RevalidateConnections(int signo)
+{
+  std::lock_guard<std::mutex> lock(abac_conn_lock);
+  log_info("revalidating connections with signal %d!\n", signo);
+  if (!routing_plugin) {
+    return;
+  }
+  for (auto i = abac_seen.begin(); i != abac_seen.end(); ) {
+    if (routing_plugin->check_abac_permission(i->ip, i->port)) {
+      log_warning("invalidating connection %s %d\n", i->ip.c_str(), i->port);
+      close(i->fd);
+    } else {
+      ++i;
+    }
+  }
+}
+
+static void ForgetConnection(int fd)
+{
+  std::lock_guard<std::mutex> lock(abac_conn_lock);
+  for (auto i = abac_seen.begin(); i != abac_seen.end(); ++i) {
+    if (i->fd == fd) {
+      abac_seen.erase(i);
+    }
+  }
+}
+
 
 
 MySQLRouting::MySQLRouting(routing::AccessMode mode, uint16_t port, const string &bind_address,
@@ -98,6 +150,12 @@ MySQLRouting::MySQLRouting(routing::AccessMode mode, uint16_t port, const string
   if (!bind_address_.port) {
     throw std::invalid_argument(string_format("Invalid bind address, was '%s', port %d", bind_address.c_str(), port));
   }
+  routing_plugin = this;
+
+#ifndef _WIN32
+  signal(SIGUSR2, RevalidateConnections);
+#endif 
+
 }
 
 int MySQLRouting::copy_mysql_protocol_packets(int sender, int receiver, fd_set *readfds,
@@ -286,6 +344,9 @@ void MySQLRouting::routing_select_thread(int client, const in6_addr client_addr)
     }
     return;
   }
+  if (abac_enabled_) {
+    AddAbacConnection(c_ip.first, c_ip.second, client);
+  }
 
   auto s_ip = get_peer_name(server);
 
@@ -374,6 +435,9 @@ void MySQLRouting::routing_select_thread(int client, const in6_addr client_addr)
   }
 
   // Either client or server terminated
+  if (abac_enabled_) {
+    ForgetConnection(client);
+  }
   socket_operations_->shutdown(client);
   socket_operations_->shutdown(server);
   socket_operations_->close(client);
@@ -617,10 +681,19 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     if (!abac_enabled_) {
       return true;
     }
+    /*
+     * Just for evaluation and debugging use.
+     */
     auto curl = abac_curl_handle_;
-    auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
-        abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
+    if (abac_test_ip_.size() != 0 ) {
+      auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
+          abac_principal_id_.c_str(), abac_test_ip_.c_str(), abac_test_port_, abac_id_.c_str());
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
+    } else {
+      auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
+          abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());
+      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
+    }
     string read_buffer;
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &read_buffer);

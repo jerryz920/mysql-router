@@ -186,6 +186,12 @@ public:
   void reset_abac();
   bool check_abac_permission(const string &ip, unsigned int port);
 
+  void set_abac_test(const string &ip, unsigned int port) {
+    if (ip.size() != 0) {
+      abac_test_ip_ = ip;
+      abac_test_port_ = port;
+    }
+  }
 
   /** @brief Descriptive name of the connection routing */
   const string name;
@@ -351,6 +357,8 @@ private:
   std::string abac_id_;
   std::string abac_principal_id_;
   bool abac_enabled_;
+  std::string abac_test_ip_;
+  unsigned int abac_test_port_;
  
   /** @brief Authentication error counters for IPv4 or IPv6 hosts */
   std::mutex mutex_auth_errors_;
