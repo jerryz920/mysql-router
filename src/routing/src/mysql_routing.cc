@@ -86,7 +86,7 @@ struct AbacConnection {
 //part in future.
 std::list<AbacConnection> abac_seen;
 std::mutex abac_conn_lock;
-MySQLRouting *routing_plugin = nullptr;
+MySQLRouting *routing_instance_ = nullptr;
 
 static void AddAbacConnection(const std::string& ip, unsigned int port, int fd)
 {
@@ -98,11 +98,11 @@ static void RevalidateConnections(int signo)
 {
   std::lock_guard<std::mutex> lock(abac_conn_lock);
   log_info("revalidating connections with signal %d!\n", signo);
-  if (!routing_plugin) {
+  if (!routing_instance_) {
     return;
   }
   for (auto i = abac_seen.begin(); i != abac_seen.end(); ) {
-    if (routing_plugin->check_abac_permission(i->ip, i->port)) {
+    if (routing_instance_->check_abac_permission(i->ip, i->port)) {
       log_warning("invalidating connection %s %d\n", i->ip.c_str(), i->port);
       close(i->fd);
     } else {
@@ -150,7 +150,7 @@ MySQLRouting::MySQLRouting(routing::AccessMode mode, uint16_t port, const string
   if (!bind_address_.port) {
     throw std::invalid_argument(string_format("Invalid bind address, was '%s', port %d", bind_address.c_str(), port));
   }
-  routing_plugin = this;
+  routing_instance_ = this;
 
 #ifndef _WIN32
   signal(SIGUSR2, RevalidateConnections);
