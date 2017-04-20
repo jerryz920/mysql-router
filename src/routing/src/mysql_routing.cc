@@ -688,10 +688,12 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     if (abac_test_ip_.size() != 0 ) {
       auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
           abac_principal_id_.c_str(), abac_test_ip_.c_str(), abac_test_port_, abac_id_.c_str());
+      log_info("checking test data %s\n", data.c_str());
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     } else {
       auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
           abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());
+      log_info("checking data %s\n", data.c_str());
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     }
     string read_buffer;
