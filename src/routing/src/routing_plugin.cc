@@ -138,6 +138,7 @@ static void start(const ConfigSection *section) {
     r.set_abac_service(config.abac_host, config.abac_port);
     r.set_abac_id(config.abac_id);
     r.set_abac_principal_id(config.abac_principal_id);
+    r.set_abac_test(config.abac_test_ip, config.abac_test_port);
     r.start();
   } catch (const std::invalid_argument &exc) {
     log_error(exc.what());

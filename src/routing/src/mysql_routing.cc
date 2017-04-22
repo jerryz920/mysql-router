@@ -114,10 +114,13 @@ static void RevalidateConnections(int signo)
 static void ForgetConnection(int fd)
 {
   std::lock_guard<std::mutex> lock(abac_conn_lock);
-  for (auto i = abac_seen.begin(); i != abac_seen.end(); ++i) {
+  for (auto i = abac_seen.begin(); i != abac_seen.end(); ) {
     if (i->fd == fd) {
-      abac_seen.erase(i);
+      i = abac_seen.erase(i);
+    } else {
+      ++i;
     }
+
   }
 }
 
@@ -685,13 +688,16 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
      * Just for evaluation and debugging use.
      */
     auto curl = abac_curl_handle_;
+      log_info("tmp ip %s:%d\n", abac_test_ip_.c_str(), abac_test_port_);
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    string data;
     if (abac_test_ip_.size() != 0 ) {
-      auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
+      data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
           abac_principal_id_.c_str(), abac_test_ip_.c_str(), abac_test_port_, abac_id_.c_str());
       log_info("checking test data %s\n", data.c_str());
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
     } else {
-      auto data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
+      data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
           abac_principal_id_.c_str(), ip.c_str(), port, abac_id_.c_str());
       log_info("checking data %s\n", data.c_str());
       curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
@@ -706,6 +712,10 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
       return false;
     }
     log_debug("abac result: %s\n", read_buffer.c_str());
+    if (read_buffer.find("RuntimeException") != string::npos) {
+      log_debug("denied!\n");
+      return false;
+    }
 
     /// validate the read buffer, see if it is ok.
     long http_code;
