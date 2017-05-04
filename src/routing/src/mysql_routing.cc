@@ -467,7 +467,6 @@ void MySQLRouting::start() {
     throw runtime_error(
         string_format("Setting up service using %s: %s", bind_address_.str().c_str(), exc.what()));
   }
-  reset_abac();
 
   log_info("[%s] listening on %s; %s", name.c_str(), bind_address_.str().c_str(),
            routing::get_access_mode_name(mode_).c_str());
@@ -656,17 +655,15 @@ int MySQLRouting::set_max_connections(int maximum) {
   return max_connections_;
 }
 
-void MySQLRouting::reset_abac() {
+void MySQLRouting::reset_abac(CURL** curl) {
   /// initialize the ABAC connection. May be called also on error
-  if (abac_curl_handle_) {
-    curl_easy_cleanup(abac_curl_handle_);
-  }
-  abac_curl_handle_ = curl_easy_init();
-  if (abac_curl_handle_) {
+  auto handle = curl_easy_init();
+  if (handle) {
     auto url = string_format("http://%s:%d/appAccessesObject",
         abac_host_.c_str(), abac_port_);
-    curl_easy_setopt(abac_curl_handle_, CURLOPT_POST, 1L);
-    curl_easy_setopt(abac_curl_handle_, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(handle, CURLOPT_URL, url.c_str());
+    *curl = handle;
   } else {
     log_error("can not initialize abac curl handle, aborting");
     exit(1);
@@ -687,9 +684,9 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     /*
      * Just for evaluation and debugging use.
      */
-    auto curl = abac_curl_handle_;
-      log_info("tmp ip %s:%d\n", abac_test_ip_.c_str(), abac_test_port_);
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    CURL* curl;
+    reset_abac(&curl);
+    log_info("tmp ip %s:%d\n", abac_test_ip_.c_str(), abac_test_port_);
     string data;
     if (abac_test_ip_.size() != 0 ) {
       data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
@@ -708,12 +705,13 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     auto res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
       log_error("curl error: %s\n", curl_easy_strerror(res));
-      reset_abac();
+      curl_easy_cleanup(curl);
       return false;
     }
     log_debug("abac result: %s\n", read_buffer.c_str());
     if (read_buffer.find("RuntimeException") != string::npos) {
       log_debug("denied!\n");
+      curl_easy_cleanup(curl);
       return false;
     }
 
@@ -723,9 +721,10 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     if (http_code != 200) {
       log_error("abac checking code: %d for %s:%d\n", http_code,
           ip.c_str(), port);
+      curl_easy_cleanup(curl);
       return false;
     }
-
+    curl_easy_cleanup(curl);
     return true;
 }
 

@@ -183,7 +183,7 @@ public:
   void set_abac_principal_id(const string &id) {
     abac_principal_id_ = id;
   }
-  void reset_abac();
+  void reset_abac(CURL** curl);
   bool check_abac_permission(const string &ip, unsigned int port);
 
   void set_abac_test(const string &ip, unsigned int port) {
