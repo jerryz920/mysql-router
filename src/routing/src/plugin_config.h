@@ -61,7 +61,7 @@ public:
       abac_principal_id(get_option_string(section, "abac_principal_id")),
       abac_enabled(get_uint_option<uint32_t>(section, "abac_enabled", 0, 2)),
       abac_test_ip(get_option_string(section, "abac_test_ip")),
-      abac_test_port(get_uint_option<uint32_t>(section, "abac_test_port", 1, 65535)) { }
+      abac_test_port(get_uint_option<uint32_t>(section, "abac_test_port", 0, 65535)) { }
 
   string get_default(const string &option);
 
