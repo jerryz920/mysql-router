@@ -688,7 +688,7 @@ bool MySQLRouting::check_abac_permission(const string &ip, unsigned int port) {
     reset_abac(&curl);
     log_info("tmp ip %s:%d\n", abac_test_ip_.c_str(), abac_test_port_);
     string data;
-    if (abac_test_ip_.size() != 0 ) {
+    if (abac_test_port_ != 0 ) {
       data = string_format("{\"principal\": \"%s\",  \"otherValues\": [\"%s:%u\", \"%s\"]}",
           abac_principal_id_.c_str(), abac_test_ip_.c_str(), abac_test_port_, abac_id_.c_str());
       log_info("checking test data %s\n", data.c_str());

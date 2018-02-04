@@ -56,7 +56,7 @@ public:
         client_connect_timeout(get_uint_option<uint32_t>(section, "client_connect_timeout", 2, 31536000)),
         net_buffer_length(get_uint_option<uint32_t>(section, "net_buffer_length", 1024, 1048576)),
       abac_host(get_option_string(section, "abac_host")),
-      abac_port(get_uint_option<uint32_t>(section, "abac_port", 1, 65535)),
+      abac_port(get_uint_option<uint32_t>(section, "abac_port", 0, 65535)),
       abac_id(get_option_string(section, "abac_id")),
       abac_principal_id(get_option_string(section, "abac_principal_id")),
       abac_enabled(get_uint_option<uint32_t>(section, "abac_enabled", 0, 2)),
